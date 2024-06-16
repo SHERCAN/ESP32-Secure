@@ -25,17 +25,19 @@ El proceso de arranque seguro y encriptación de flash en ESP32 es crucial para 
   
 ### 1.3 Firmado de Binarios para Cargar en la ESP 
 - Firme los binarios de su aplicación, firmware, particiones, bootloader, etc., utilizando la llave generada, ya sea en formato .bin o .pem.
-  - Comando: `espsecure sign_data firmware.bin --version 2 --keyfile rsa-key.bin --output firmware_signed.bin`
+  - Comando: `espsecure sign_data firmware.bin --version 2 --keyfile secure_v2.bin --output firmware_signed.bin`
   
-### 1.4 Creación del Boot con la Llave Pública y Flasheo 
-- Cree el boot con la llave pública.
-  - Comando: `espsecure extract_public_key --keyfile rsa-key.bin --version 2 boot_encrypt.bin`
-- Flashee el boot en la ESP32. (Revise la partición de la ESP; si es necesario, cambie la dirección de escritura).
-  - Comando: `esptool --chip esp32 --port COM3 --baud 115200 write_flash 0xE000 boot_encrypt.bin`
+### 1.4 Creación de la Llave Pública y Flasheo 
+- Cree la llave pública para quemar en la ESP32.
+  - Comando: `espsecure extract_public_key -k secure_v2.bin --version 2 public_key_efuse.bin`
+- Extraer la llave de encriptación en hexadecimal para poder quemarla en los EFUSES
+  - `espsecure digest_rsa_public_key -k public_key_efuse.bin -o hex_public_key.bin`
+- Flashee el bootloader en la ESP32. (Revise la partición de la ESP; si es necesario, cambie la dirección de escritura).
+  - Comando: `espefuse --chip esp32 --port COM3 burn_key secure_boot hex_public_key.bin`
   
 ### 1.5 Flasheo de los Binarios Firmados
 - Utilice este código para flashear todos los binarios.
-  - Comando: `esptool -c esp32 -p COM3 write_flash 0x1000 bootloader.bin 0x8000 partitions.bin 0x110000 firmware.bin`
+  - Comando: `esptool -c esp32 -p COM3 write_flash 0x1000 bootloader.bin 0x8000 partitions.bin 0x11000 firmware.bin`
 ### 1.6 Verificación de Efuses 
 - Verifique los efuses utilizando la herramienta espefuse. Vea [Utilidades](#utilidades).
   - Comando: `espefuse -p COM3 summary`
