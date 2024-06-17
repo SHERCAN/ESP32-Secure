@@ -42,17 +42,18 @@ El proceso de arranque seguro y encriptación de flash en ESP32 es crucial para 
 - Verifique los efuses utilizando la herramienta espefuse. Vea [Utilidades](#utilidades).
   - Comando: `espefuse -p COM3 summary`
 
-## 2. Función para Encriptar el Flash 
+## 2. Función para encriptar la memoria Flash
 ### 2.1 Generación de la Clave de Encriptación del Flash
 - Genere la clave de encriptación del flash mediante la herramienta espsecure.
   - Comando: `espsecure generate_flash_encryption_key flash_enc_key.bin`
 
-### 2.2 Adición de la Clave Binaria a los Efuses 
+### 2.2 Adición de la llave de encriptación a los Efuses 
 - Agregue la llave de encriptación a los efuses de **BLOCK1**. Vea [Utilidades](#utilidades).
   - Comando: `espefuse -p COM3 burn_key  flash_encryption flash_enc_key.bin`
-  - Tambien puede utilizar este: `espefuse burn_key BLOCK1 flash_encryption_key.bin`
+
 - Active el mecanismo de cifrado flash.
-  - Comando: `espefuse -p COM3 burn_efuse FLASH_CRYPT_CNT`
+  - Comando: `espefuse -p COM3 burn_efuse FLASH_CRYPT_CNT 0x7f`
+
 - Configure el cifrado para utilizar la clave de encripción del flash.
   - Comando: `espefuse -p COM3 burn_efuse FLASH_CRYPT_CONFIG 0x0F`
 
@@ -68,37 +69,60 @@ El proceso de arranque seguro y encriptación de flash en ESP32 es crucial para 
 - ### Herramienta: esptool
   - Comando: `esptool -c esp32 -p COM3 write_flash 0x8000 partitions_signed_flash.bin 0x11000 firmware_signed_flash.bin 0x1000 bootloader_signed_flash.bin`
 
-### 3. Verificación de Efuses 
+### 2.5. Verificación de Efuses 
 - Verifique los efuses utilizando la herramienta espefuse.
   - Comando: `espefuse -p COM3 summary`
 
-## Utilidades 
+# 3. Proceso para subir Firmware, Bootloader y Partitions con seguridad implementada
+
+**Explicar el paso a paso para realiar el proceso de firmado y encriptado de todo para subir con los dos procesos habilitados.
+
+## 4. Utilidades 
 ### Verificación de Efuses
 - Utilice la herramienta espefuse para verificar los efuses.
   - Comando: `espefuse -p COM3 summary`
-- El ítem **a** indica que el flash no está encriptado, el ítem **b** indica que no hay código encriptado en el flash, y el ítem **c** indica que no hay encriptación para el arranque seguro.
-  - Los datos que deben aparecer son los siguientes:
-  a. `FLASH_CRYPT_CNT = 0`, `FLASH_CRYPT_CONFIG = 0`
-  b. `BLOCK1 (BLOCK1): Flash encryption key = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 R/W`
-  c. `BLOCK2 (BLOCK2): Secure boot key = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 R/W`
+- El ítem **a** indica que no esta habilitada la encriptación de flash, el ítem **b** indica que no hay llave de encriptación quemada, y el ítem **c** indica que no hay llave de encriptación para el arranque seguro.
+  - Los datos que deben aparecer son los siguientes cuando el dispositivo no ha sido encriptado:
+    - a. `FLASH_CRYPT_CNT = 0`, `FLASH_CRYPT_CONFIG = 0`
+    - b. `BLOCK1 (BLOCK1): Flash encryption key = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 R/W`
+    - c. `BLOCK2 (BLOCK2): Secure boot key = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 R/W`
 
 
 ### Borrado de Toda la Memoria Flash
-- Comando: `esptool.py --port com3 erase_flash`
+- Comando: `esptool.py --port COM3 erase_flash`
 
 ### Escritura del Bootloader
-- Comando: `esptool.py --port /dev/ttyUSB0 --baud 921600 write_flash 0x1000 bootloader.bin`
+- Comando: `esptool.py --port COM3 --baud 921600 write_flash 0x1000 bootloader.bin`
 
 ### Escritura del Esquema de Particiones
-- Comando: `esptool.py --port /dev/ttyUSB0 --baud 921600 write_flash 0x8000 partitions.bin`
+- Comando: `esptool.py --port COM3 --baud 921600 write_flash 0x8000 partitions.bin`
 
 ### Escritura del Firmware
-- Comando: `esptool.py --port /dev/ttyUSB0 --baud 921600 write_flash 0x10000 firmware.bin`
+- Comando: `esptool.py --port COM3 --baud 921600 write_flash 0x10000 firmware.bin`
 
-### Comprobación del Cifrado 
+### Verificación del Cifrado 
 - Puede utilizar la librería "esp_flash_encrypt.h" para tomar decisiones lógicas adicionales.
 
+  ```c++ 
+      #include <Arduino.h>
+      #include "esp_flash_encrypt.h"
+      void setup()
+      {
+        Serial.begin(115200);
+      }
+      void loop()
+      {
+      delay(500);
+      if (esp_flash_encryption_enabled())
+          Serial.println("Encryption Enabled");
+      else
+        Serial.println("Encryption not Enabled");
+      }
+### Proceso con llaves propias de la esp32 
+- Si las claves no están escritas en efuse, antes de actualizar el gestor de arranque, el ESP32 generará claves aleatorias, que nunca podrán leerse ni reescribirse, por lo que el gestor de arranque nunca podrá actualizarse. Es más, la aplicación se puede recargar (por USB) sólo 3 veces más, luego de esto ya no se podrá modificar.
 # Bibliografía
 - [Foro Pycom: Secure Boot and Encryption](https://forum.pycom.io/topic/4949/secureboot-and-encryption/3)
 - [Motius: How to Build a Secure IoT Prototype with Arduino and ESP32](https://www.motius.com/post/how-to-build-a-secure-iot-prototype-with-arduino-and-esp32)
 - [Medium: ESP32 Firmware Encryption](https://medium.com/@kattelroshan1/esp32-firmware-encryption-a53eb1c9bf9c)
+- [PYCOM](https://docs.pycom.io/advance/encryption/)
+- [PBearson](https://github.com/PBearson/ESP32_Secure_Key_Storage_Tutorial)
