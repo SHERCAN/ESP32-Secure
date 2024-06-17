@@ -6,7 +6,7 @@ El proceso de arranque seguro y encriptación de flash en ESP32 es crucial para 
 
 # Proceso Irreversible: Tómese con Precaución
 
-## 1. Función para Arranque Seguro (Secure Boot)
+## 1. Función para Arranque Seguro (Secure Boot V2)
 ### 1.1 Instalación de Dependencias
 - Instale OpenSSL según su sistema operativo.
   - Ejemplo para Windows: `choco install openssl`
@@ -17,7 +17,7 @@ El proceso de arranque seguro y encriptación de flash en ESP32 es crucial para 
 - Genere una llave RSA-3072 con OpenSSL.
   - Comando: `openssl genrsa -out rsa_key.pem 3072`
 - O bien, genere una llave RSA-3072 con la herramienta espsecure, que la generará en formato .bin.
-  - Comando: `espsecure generate_signing_key --version 2 --scheme rsa3072 secure_v2.pem`
+  - Comando: `espsecure generate_signing_key --version 2 --scheme rsa3072 secure_v2.bin`
 - Verifique la llave generada.
   - Comando: `openssl rsa -in rsa_key.pem -check`
 - Verifique la llave generada en formato de texto.
@@ -38,6 +38,9 @@ El proceso de arranque seguro y encriptación de flash en ESP32 es crucial para 
 ### 1.5 Flasheo de los Binarios Firmados
 - Utilice este código para flashear todos los binarios.
   - Comando: `esptool -c esp32 -p COM3 write_flash 0x1000 bootloader.bin 0x8000 partitions.bin 0x11000 firmware.bin`
+### 1.6 Quemar los Efuses
+- Utilice este código para configurar los Efuses despues de que terminare de quemar la llave publica 
+  - Comando: `espefuse -p COM3 burn_efuse ABS_DONE_1`
 ### 1.6 Verificación de Efuses 
 - Verifique los efuses utilizando la herramienta espefuse. Vea [Utilidades](#utilidades).
   - Comando: `espefuse -p COM3 summary`
@@ -45,7 +48,7 @@ El proceso de arranque seguro y encriptación de flash en ESP32 es crucial para 
 ## 2. Función para encriptar la memoria Flash
 ### 2.1 Generación de la Clave de Encriptación del Flash
 - Genere la clave de encriptación del flash mediante la herramienta espsecure.
-  - Comando: `espsecure generate_flash_encryption_key flash_enc_key.bin`
+  - Comando: `espsecure generate_flash_encryption_key -l 256 flash_enc_key.bin`
 
 ### 2.2 Adición de la llave de encriptación a los Efuses 
 - Agregue la llave de encriptación a los efuses de **BLOCK1**. Vea [Utilidades](#utilidades).
@@ -76,16 +79,20 @@ El proceso de arranque seguro y encriptación de flash en ESP32 es crucial para 
 # 3. Proceso para subir Firmware, Bootloader y Partitions con seguridad implementada
 
 **Explicar el paso a paso para realiar el proceso de firmado y encriptado de todo para subir con los dos procesos habilitados.
-
+# 4. Deshabilitar la actualización de firmware
+- Este proceso quemara 2 efuses y la ESP32 quedara sin la posibilidad de poder volver a subir un firmware, la unica posibilidad es implementar OTA.
+- Comando: `espefuse -p COM3 burn_efuse DISABLE_JTAG`
+- Comando: `espefuse -p COM3 burn_efuse UART_DOWNLOAD_DIS`
 ## 4. Utilidades 
 ### Verificación de Efuses
 - Utilice la herramienta espefuse para verificar los efuses.
   - Comando: `espefuse -p COM3 summary`
-- El ítem **a** indica que no esta habilitada la encriptación de flash, el ítem **b** indica que no hay llave de encriptación quemada, y el ítem **c** indica que no hay llave de encriptación para el arranque seguro.
+- El ítem **a** indica que no esta habilitada la encriptación de flash, el item **b** indica que no se ha habilitado el secure boot, el ítem **c** indica que no hay llave de encriptación quemada, y el ítem **d** indica que no hay llave de encriptación para el arranque seguro.
   - Los datos que deben aparecer son los siguientes cuando el dispositivo no ha sido encriptado:
     - a. `FLASH_CRYPT_CNT = 0`, `FLASH_CRYPT_CONFIG = 0`
-    - b. `BLOCK1 (BLOCK1): Flash encryption key = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 R/W`
-    - c. `BLOCK2 (BLOCK2): Secure boot key = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 R/W`
+    - b. `ABS_DONE_1 = 0`
+    - c. `BLOCK1 (BLOCK1): Flash encryption key = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 R/W`
+    - d. `BLOCK2 (BLOCK2): Secure boot key = 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 R/W`
 
 
 ### Borrado de Toda la Memoria Flash
